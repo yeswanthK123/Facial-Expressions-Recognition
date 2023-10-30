@@ -14,7 +14,7 @@ model.load_weights('weights_model1.h5')
 # Load the Haar Cascade Classifier for face detection
 face_haar_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
-app = Flask(__name)
+app = Flask(__name__)
 
 # Configure the app
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0 

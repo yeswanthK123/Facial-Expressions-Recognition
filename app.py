@@ -1,49 +1,36 @@
-# Let us import the Libraries required.
 import os
 import cv2
-import urllib
 import numpy as np
 import tensorflow as tf
 from werkzeug.utils import secure_filename
-from urllib.request import Request, urlopen
-from tensorflow.feature_column import feature_column_v2 as fc
 from tensorflow.keras.preprocessing import image 
-from flask import Flask, render_template, Response, request, redirect, flash, url_for
+from flask import Flask, render_template, Response, request, redirect, flash
 from tensorflow.keras.models import model_from_json 
- 
-#load model  
+
+# Load the model
 model = model_from_json(open("jsn_model.json", "r").read())  
-#load weights  
 model.load_weights('weights_model1.h5')  
- 
 
-# Loading the classifier from the file.
-face_haar_cascade = cv2.CascadeClassifier(cv2.data.haarcascades+'haarcascade_frontalface_default.xml')
+# Load the Haar Cascade Classifier for face detection
+face_haar_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
-# Let us Instantiate the app
-app = Flask(__name__)
+app = Flask(__name)
 
-###################################################################################
-
-# When serving files, we set the cache control max age to zero number of seconds
-# for refreshing the Cache
+# Configure the app
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0 
 UPLOAD_FOLDER = 'static'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-###################################################################################
+# Define the routes
 @app.route('/')
-def Start():
-    """ Renders the Home Page """
-
+def start():
     return render_template('index.html')
-###################################################################################
-camera = cv2.VideoCapture(0)
 
-def gen_frames():  # generate frame by frame from camera
+# Define the function to generate frames
+def gen_frames():
+    camera = cv2.VideoCapture(0)
     while True:
-        # Capture frame by frame
         success, test_img = camera.read()
         if not success:
             break
@@ -85,30 +72,18 @@ def gen_frames():  # generate frame by frame from camera
            
             resized_img = cv2.resize(test_img, (1000, 700))  
             
+
             ret, buffer = cv2.imencode('.jpg', test_img)
-            
             frame = buffer.tobytes()
             yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')  # concat frame one by one and show result
-
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
 
 @app.route('/video_feed')
 def video_feed():
-    #Video streaming route. Put this in the src attribute of an img tag
-    return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame') 
+    return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
-
- ################################################################
-@app.route('/RealTime', methods=['POST'])
-def RealTime():
-    """ Video streaming """
-
-    return render_template('real_time.html')
-  ################################################################
-
-def Emotion_Analysis(img):
-    """ It does prediction of Emotions found in the Image provided,saves as Images and returns them """
-
+# Define the function for real-time analysis
+def emotion_analysis(img):
     # Read the Image through OpenCv's imread()
     path = "static/" + str(img)
     image = cv2.imread(path)
@@ -161,7 +136,6 @@ def allowed_file(filename):
     """ Checks the file format when file is uploaded"""
     return ('.' in filename and
             filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS)
-  #################################################################
 @app.route('/ImageUpload', methods=['POST'])
 def ImageUpload():
     """ Manual Uploading of Images via URL or Upload """
@@ -173,46 +147,32 @@ def UrlUpload():
     """ Manual Uploading of Images via URL or Upload """
 
     return render_template('url.html')
- 
- ################################################################# 
+
+
 @app.route('/uploadimage', methods=['POST'])
 def uploadimage():
     """ Loads Image from System, does Emotion Analysis & renders."""
 
     if request.method == 'POST':
-
         # Check if the post request has the file part
         if 'file' not in request.files:
             flash('No file part')
             return redirect(request.url)
 
-        file = request.files['file']
+        # The rest of your code here...
 
-        # If user does not select file, browser also
-        # submit an empty part without filename
-        if file.filename == '':
-            flash('No selected file')
-            return redirect(request.url)
+    # Make sure the following code is properly indented under the if statement.
 
-        # If user uploads the correct Image File
-        if file and allowed_file(file.filename):
+    # If user uploads the correct Image File
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        result = Emotion_Analysis(filename)
 
-            # Pass it a filename and it will return a secure version of it.
-            # The filename returned is an ASCII only string for maximum portability.
-            filename = secure_filename(file.filename)
-            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        if len(result) == 1:
+            return render_template('no_prediction.html', orig=result[0])
 
-            result = Emotion_Analysis(filename)
-
-            # When Classifier could not detect any Face.
-            if len(result) == 1:
-
-                return render_template('no_prediction.html', orig=result[0])
-
-             
-            return render_template('prediction.html', orig=result[0], pred=result[1])
-
- #################################################################
+        return render_template('prediction.html', orig=result[0], pred=result[1])
 @app.route('/imageurl', methods=['POST'])
 def imageurl():
     """ Fetches Image from URL Provided, does Emotion Analysis & renders."""
